@@ -34,6 +34,12 @@ def dataset_viewer(pmid, abstracts, entities, relations):
                 if entity2_type not in ["GENE-Y", "GENE-N"]:
                     print("PMID: {}, Arg2: {} is not a gene.".format(pmid, arg2))
 
+            if (start_pos1 <= start_pos2 and end_pos2 <= end_pos1) or (start_pos2 <= start_pos1 and end_pos1 <= end_pos2):
+                relation = relations_dict.get((arg1, arg2), "NOT")
+                if relation == "NOT":
+                    relation = relations_dict.get((arg2, arg1), "NOT")
+                print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
+
             if end_pos1 <= start_pos2:
                 continue
             elif end_pos2 <= start_pos1:
@@ -41,10 +47,10 @@ def dataset_viewer(pmid, abstracts, entities, relations):
             else:
                 if (arg1, arg2) in relations_dict:
                     relation = relations_dict[(arg1, arg2)]
-                    print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
+                    # print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
                 elif (arg2, arg1) in relations_dict:
                     relation = relations_dict[(arg2, arg1)]
-                    print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
+                    # print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
                 overlapping_entities.append([arg1, arg2])
 
         for arg, (entity_type, start_pos, end_pos, name) in entites_dict.items():
@@ -61,6 +67,54 @@ abstract_path = "train_data/drugprot_training_abstracs.tsv"
 entity_path = "train_data/drugprot_training_entities.tsv"
 relation_path = "train_data/drugprot_training_relations.tsv"
 
+def check_duplicates():
+    all_abstracts = pd.read_csv(abstract_path, sep='\t', header=None, names=["pmid", "title", "abstract"], dtype={"pmid": str})
+    all_entities = pd.read_csv(entity_path, sep='\t', header=None, names=["pmid", "arg", "type", "start", "end", "name"], dtype={"pmid": str})
+    all_relations = pd.read_csv(relation_path, sep='\t', header=None, names=["pmid", "type", "arg1", "arg2"], dtype={"pmid": str})
+
+    duplicated_abstracts = all_abstracts.duplicated(subset=["pmid"], keep=False)
+    duplicated_entities = all_entities.duplicated(subset=["pmid", "arg"], keep=False)
+    duplicated_relations = all_relations.duplicated(subset=["pmid", "arg1", "arg2"], keep=False)
+    pd.set_option("max_rows", None)     
+
+    if any(duplicated_abstracts):
+        all_duplicated_abstracts = all_abstracts.loc[duplicated_abstracts, :]
+        print("Duplicated Abstracts:")
+        print(all_duplicated_abstracts)
+        
+    if any(duplicated_entities):
+        all_duplicated_entities = all_entities.loc[duplicated_entities, :]
+        print("Duplicated Entities:")
+        print(all_duplicated_entities)
+        
+    if any(duplicated_relations):
+        all_duplicated_relations = all_relations.loc[duplicated_relations, :]
+        from collections import defaultdict
+        dupe_dict = defaultdict(list)
+        for _, relation_dupe in all_duplicated_relations.iterrows():
+            this_pmid, this_type, this_arg1, this_arg2 = relation_dupe["pmid"], relation_dupe["type"], relation_dupe["arg1"], relation_dupe["arg2"]
+            dupe_dict[(this_pmid, this_arg1, this_arg2)].append(this_type)
+        dupe_count_dict = defaultdict(int)
+        for this_key, this_relations in dupe_dict.items():
+            from itertools import combinations
+            for relation1, relation2 in combinations(this_relations, r=2):
+                if relation1 > relation2:
+                    relation1, relation2 = relation2, relation1
+                dupe_count_dict[(relation1, relation2)] += 1
+        for (relation1, relation2), dupe_count in dupe_count_dict.items():
+            print("{} - {}: {}".format(relation1, relation2, dupe_count))
+        print("Duplicated Relations: {} of {}".format(len(all_duplicated_relations), len(all_relations)))
+        print(all_duplicated_relations)
+    
+    totally_duplicated_relations = all_relations.duplicated(keep=False)
+    if any(totally_duplicated_relations):
+        all_totally_duplicated_relations = all_relations.loc[totally_duplicated_relations, :]
+        print("Totally Duplicated Relations: {} of {}".format(len(all_totally_duplicated_relations), len(all_relations)))
+        print(all_totally_duplicated_relations)
+
+
+check_duplicates()
+"""
 pmid_to_abstract_dict = {}
 with open(abstract_path, "r") as abstract_file:
     for line in abstract_file:
@@ -89,7 +143,7 @@ with open(relation_path, "r") as relation_file:
         else:
             pmid_to_relations_dict[pmid] = [(relation_type, arg1, arg2)]
 
-df = pd.read_csv("train_dataset.csv")
+df = pd.read_json("train_dataset.json", orient="table")
 pmids = list(set(df["pmid"]))
 for pmid in pmids:
     pmid = str(pmid)
@@ -97,3 +151,4 @@ for pmid in pmids:
     entities = entities_dict.get(pmid, {})
     relations = pmid_to_relations_dict.get(pmid, {})
     dataset_viewer(pmid, abstracts, entities, relations)
+"""
