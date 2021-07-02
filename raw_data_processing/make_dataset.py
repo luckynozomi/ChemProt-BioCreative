@@ -86,26 +86,11 @@ def gen_dataset(abstract_path, entity_path, relation_path):
                 chem_arg, chem_start, chem_end, chem_name = chemical
                 gene_arg, gene_start, gene_end, gene_name = gene
 
+                # Ignore all totally overlapping cases. They will be labeled as NOT.
                 if chem_start <= gene_start and gene_end <= chem_end:
                     continue
                 if gene_start <= chem_start and chem_end <= gene_end:
                     continue
-
-                if chem_start <= gene_start and gene_end <= chem_end:
-                    assert (chem_arg, gene_arg) not in args_to_relation_dict
-                    assert (gene_arg, chem_arg) not in args_to_relation_dict
-                    continue
-                if gene_start <= chem_start and chem_end <= gene_end:
-                    if pmid=="23579178" and chem_arg=="T8" and gene_arg=="T20":  # Special case
-                        continue
-                    if pmid=="23219161" and chem_arg=="T1" and gene_arg=="T9":
-                        continue
-                    if pmid=="23219161" and chem_arg=="T2" and gene_arg=="T10":
-                        continue
-                    if pmid=="23548896" and chem_arg=="T6" and gene_arg=="T27":
-                        continue
-                    if pmid=="23548896" and chem_arg=="T3" and gene_arg=="T11":
-                        continue
 
                 relation_type = args_to_relation_dict.get((chem_arg, gene_arg), "NOT")
 
@@ -119,12 +104,13 @@ def gen_dataset(abstract_path, entity_path, relation_path):
                 this_ret = [pmid, out_chemical, out_gene, all_chemicals, all_geneYs, all_geneNs, relation_type, this_sentence]
                 output.append(this_ret)
 
+    # Paritally overlapping chemicals-genes are not dealt with yet.
     sv = pd.DataFrame(output, columns=["pmid", "chemical", "gene", "all_chemicals", "all_geneYs", "all_geneNs", "relation type", "sentence"])
     return sv
 
 dataset_training = gen_dataset(
-    abstract_path = "train_data/drugprot_training_abstracs.tsv",
-    entity_path = "train_data/drugprot_training_entities.tsv",
-    relation_path = "train_data/drugprot_training_relations.tsv"
+    abstract_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_abstracs.tsv",
+    entity_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_entities.tsv",
+    relation_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_relations.tsv"
 )
 dataset_training.to_json("train_dataset.json", orient="table", indent=4)

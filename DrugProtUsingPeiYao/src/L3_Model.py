@@ -18,7 +18,26 @@ Show = ['method', 'transition_features', 'targets', 'feature_importances', 'deci
 
 myscorer = make_scorer(F1_micro_34569, greater_is_better=True)
 
+relation_to_label_dict = {
+    'NOT': 0,
+    'ANTAGONIST': 1,
+    'PRODUCT-OF': 2,
+    'AGONIST': 3,
+    'PART-OF': 4,
+    'INHIBITOR': 5 ,
+    'AGONIST-ACTIVATOR': 6 ,
+    'INDIRECT-UPREGULATOR': 7 ,
+    'DIRECT-REGULATOR': 8,
+    'SUBSTRATE': 9,
+    'ACTIVATOR': 10,
+    'SUBSTRATE_PRODUCT-OF': 11,
+    'AGONIST-INHIBITOR': 12,
+    'INDIRECT-DOWNREGULATOR': 13
+}
 
+label_to_relation_dict = {this_val: this_key for this_key, this_val in relation_to_label_dict.items()}
+
+n_classes = len(relation_to_label_dict)
 argv = sys.argv[1:]
 
 try:
@@ -121,9 +140,9 @@ for Repeat in range(REPEAT):
 	n_clf = len(CLF)
 	Fscore_trn = np.zeros(n_clf)
 	Fscore_tst = np.zeros(n_clf)
-	prob_trn = np.zeros([n_clf, n_cases_trn, 10])
+	prob_trn = np.zeros([n_clf, n_cases_trn, n_classes])
 	pred_Y_trn = np.zeros([n_cases_trn, n_clf])
-	prob_tst = np.zeros([n_clf, n_cases_tst, 10])
+	prob_tst = np.zeros([n_clf, n_cases_tst, n_classes])
 	
 	if cvsearch ==0:	
 		RANDOM_SEARCH = {}
@@ -167,12 +186,12 @@ for Repeat in range(REPEAT):
 		fold += 1
 	for i in range(n_clf): 
 		Fscore_trn[i] = F1_micro_34569(pair_label_trn,pred_Y_trn[:,i])
-		Fscore_tst[i] = F1_micro_34569(pair_label_tst,prob_tst[i,:,:].argmax(1)+1)
+		Fscore_tst[i] = F1_micro_34569(pair_label_tst,prob_tst[i,:,:].argmax(1))
 	prob_tst = np.average(prob_tst/10, axis=0)
 	#pred_Y_tst = prob_tst[0,:,:].argmax(1)+1
-	pred_Y_tst = prob_tst.argmax(1)+1
+	pred_Y_tst = prob_tst.argmax(1)
 	prob_trn = np.average(prob_trn,0)
-	pred_Y_trn = prob_trn.argmax(1)+1
+	pred_Y_trn = prob_trn.argmax(1)
 	
 	os.system('echo "Overall '+trn_prefix+' F1: ' + str(F1_micro_34569(pair_label_trn,pred_Y_trn))+'"')	
 	print(Fscore_trn)
@@ -182,9 +201,9 @@ for Repeat in range(REPEAT):
 	Rel = REL.readlines()
 	SUB = open(tst_prefix+'_submit.tsv','w')
 	for line_count, line in enumerate(pred_Y_tst):
-		if line in [3,4,5,6,9]:
+		if line != 0:
 			arr = Rel[line_count].split('\t')
-			SUB.write(arr[0]+'\tCPR:'+str(line)+'\t'+arr[-2]+'\t'+arr[-1])
+			SUB.write(arr[0]+'\t'+label_to_relation_dict[line]+'\t'+arr[-2]+'\t'+arr[-1])
 	SUB.close()
 # Overall ChemProtTrain F1: 0.6883116883116883
 # [0.68335419 0.68046572 0.68456376 0.66410256]

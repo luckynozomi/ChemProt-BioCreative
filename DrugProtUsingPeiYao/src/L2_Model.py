@@ -214,8 +214,8 @@ average_prob_trn = np.zeros([Holdout_class_trn.shape[0],n_categories])
 for m in range(n_clf):
 	average_prob_tst = average_prob_tst + Holdout_prob_tst[:,(m*n_categories):((m+1)*n_categories)]
 	average_prob_trn = average_prob_trn + Holdout_prob_trn[:,(m*n_categories):((m+1)*n_categories)]
-average_class_tst = average_prob_tst.argmax(1) + 1
-average_class_trn = average_prob_trn.argmax(1) + 1
+average_class_tst = average_prob_tst.argmax(1)
+average_class_trn = average_prob_trn.argmax(1)
 Holdout_prob_trn = np.hstack([Holdout_prob_trn,average_prob_trn/len(clf_torun)])
 Holdout_prob_tst = np.hstack([Holdout_prob_tst,average_prob_tst/len(clf_torun)])
 Holdout_class_trn = np.hstack([Holdout_class_trn, average_class_trn.reshape(Holdout_class_trn.shape[0],1)])

@@ -1,81 +1,48 @@
-# Check tagged position of entities
-# Check there aren't any overlapping between tagged entities
-# Check all arg1 are chemicals, and all arg2 are genes
-import itertools
-from types import CoroutineType
-def dataset_viewer(pmid, abstracts, entities, relations):
+# 1. Abstracts:
+### Task 1a. No duplicated PMIDs --> Pass
 
-    pmid = int(pmid)
-    title, abstract = abstracts
-    title_length = len(title)
-    entities_title_dict = {}
-    entities_abstract_dict = {}
-    for arg, (entity_type, start_pos, end_pos, name) in entities.items():
-        start_pos, end_pos = int(start_pos), int(end_pos)
-        if end_pos <= title_length:
-            entities_title_dict[arg] = (entity_type, start_pos, end_pos, name)
-        else:
-            entities_abstract_dict[arg] = (entity_type, start_pos - title_length - 1, end_pos - title_length - 1, name)
-    relations_dict = {}
-    for relation_type, arg1, arg2 in relations:
-        relations_dict[(arg1, arg2)] = relation_type
+# 2. Entity Mentions
+### Task 2a. No duplicated (pmid, arg) -> Pass
+### Task 2b. All entity types are either "CHEMICAL", "GENE-Y" or "GENE-X" -> Pass
+### Task 2c. `Title_and_Abstract[start_pos:end_pos] == name` -> **One exception, fixed?**
+### Task 2d. The names are not part of bigger word, i.e., `name == "CHEMICA"` when it's actually `"CHEMICAL"` in the original text.
 
-    for text, entites_dict in zip([title, abstract], [entities_title_dict, entities_abstract_dict]):
-        text_idx_has_entity = [False] * len(text)
-
-        overlapping_entities = []
-        for arg1, arg2 in itertools.combinations(entites_dict, r=2):
-            entity1_type, start_pos1, end_pos1, name1 = entites_dict[arg1]
-            entity2_type, start_pos2, end_pos2, name2 = entites_dict[arg2]
-
-            if (arg1, arg2) in relations_dict or (arg2, arg1) in relations_dict:
-                if entity1_type != "CHEMICAL":
-                    print("PMID: {}, Arg1: {} is not a chemical.".format(pmid, arg1))
-                if entity2_type not in ["GENE-Y", "GENE-N"]:
-                    print("PMID: {}, Arg2: {} is not a gene.".format(pmid, arg2))
-
-            if (start_pos1 <= start_pos2 and end_pos2 <= end_pos1) or (start_pos2 <= start_pos1 and end_pos1 <= end_pos2):
-                relation = relations_dict.get((arg1, arg2), "NOT")
-                if relation == "NOT":
-                    relation = relations_dict.get((arg2, arg1), "NOT")
-                print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
-
-            if end_pos1 <= start_pos2:
-                continue
-            elif end_pos2 <= start_pos1:
-                continue
-            else:
-                if (arg1, arg2) in relations_dict:
-                    relation = relations_dict[(arg1, arg2)]
-                    # print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
-                elif (arg2, arg1) in relations_dict:
-                    relation = relations_dict[(arg2, arg1)]
-                    # print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name1, name2, relation, pmid))
-                overlapping_entities.append([arg1, arg2])
-
-        for arg, (entity_type, start_pos, end_pos, name) in entites_dict.items():
-            try:
-                assert text[start_pos:end_pos] == name
-            except:
-                print("PMID: {}, Arg: {}, name: {} text doesn't match.".format(pmid, arg, name))
-            for pos in range(start_pos, end_pos):
-                text_idx_has_entity[pos] = True
-
+# 3. Relation
+### Task 3a. No duplicated (pmid, arg1, arg2) -> **FAILED**
+### Task 3b. All arg1 are "CHEMICAL", and all arg2 are either "GENE-Y" or "GENE-N" -> Pass
+### Task 3c. All relation types are in the list of the ones we need to predict -> Pass
+### Task 3d. All the chemicals and genes are in the same sentence -> We don't have their sentence splitter so we can't check. We use this criteria to validate our own sentence splitter. After its built, we confirm that all the pairs are in the same sentence.
 import pandas as pd
-from tqdm import tqdm
-abstract_path = "train_data/drugprot_training_abstracs.tsv"
-entity_path = "train_data/drugprot_training_entities.tsv"
-relation_path = "train_data/drugprot_training_relations.tsv"
+import os
+import csv
 
+ALL_RELATIONS = [
+    "INDIRECT-DOWNREGULATOR", "INDIRECT-UPREGULATOR", "DIRECT-REGULATOR", "ACTIVATOR", "INHIBITOR",
+    "AGONIST", "ANTAGONIST", "AGONIST-ACTIVATOR", "AGONIST-INHIBITOR", "PRODUCT-OF",
+    "SUBSTRATE", "SUBSTRATE_PRODUCT-OF", "PART-OF"
+]
+
+PROJECT_DIR = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing"
+
+dataset = "training"
+abstract_path = "drugprot-gs-training-development/{dataset}/drugprot_{dataset}_abstracs.tsv".format(dataset=dataset)
+entity_path = "drugprot-gs-training-development/{dataset}/drugprot_{dataset}_entities.tsv".format(dataset=dataset)
+relation_path = "drugprot-gs-training-development/{dataset}/drugprot_{dataset}_relations.tsv".format(dataset=dataset)
+
+abstract_path = os.path.join(PROJECT_DIR, abstract_path)
+entity_path = os.path.join(PROJECT_DIR, entity_path)
+relation_path = os.path.join(PROJECT_DIR, relation_path)
+
+all_abstracts = pd.read_csv(abstract_path, sep='\t', header=None, names=["pmid", "title", "abstract"], dtype={"pmid": str}, na_filter=False, quoting=csv.QUOTE_NONE)
+all_entities = pd.read_csv(entity_path, sep='\t', header=None, names=["pmid", "arg", "type", "start", "end", "name"], dtype={"pmid": str}, na_filter=False, quoting=csv.QUOTE_NONE)
+all_relations = pd.read_csv(relation_path, sep='\t', header=None, names=["pmid", "type", "arg1", "arg2"], dtype={"pmid": str}, na_filter=False, quoting=csv.QUOTE_NONE)
+
+# Task 1a, 2a, 3a
 def check_duplicates():
-    all_abstracts = pd.read_csv(abstract_path, sep='\t', header=None, names=["pmid", "title", "abstract"], dtype={"pmid": str})
-    all_entities = pd.read_csv(entity_path, sep='\t', header=None, names=["pmid", "arg", "type", "start", "end", "name"], dtype={"pmid": str})
-    all_relations = pd.read_csv(relation_path, sep='\t', header=None, names=["pmid", "type", "arg1", "arg2"], dtype={"pmid": str})
-
     duplicated_abstracts = all_abstracts.duplicated(subset=["pmid"], keep=False)
     duplicated_entities = all_entities.duplicated(subset=["pmid", "arg"], keep=False)
     duplicated_relations = all_relations.duplicated(subset=["pmid", "arg1", "arg2"], keep=False)
-    pd.set_option("max_rows", None)     
+    pd.set_option("max_rows", None)
 
     if any(duplicated_abstracts):
         all_duplicated_abstracts = all_abstracts.loc[duplicated_abstracts, :]
@@ -113,42 +80,100 @@ def check_duplicates():
         print(all_totally_duplicated_relations)
 
 
+def check_2b():
+    entity_types = all_entities["type"]
+    assert all(entity_types.isin(["CHEMICAL", "GENE-Y", "GENE-N"]))
+
+import copy
+def check_2c_2d():
+    print("Checking 2c and 2d...")
+    for _, entity in all_entities.iterrows():
+        pmid = entity["pmid"]
+        abstracts = all_abstracts[all_abstracts["pmid"]==pmid]
+        title, abstract = list(abstracts["title"])[0], list(abstracts["abstract"])[0]
+        og_text = title + '\t' + abstract
+
+        entity_name = entity["name"]
+        start_pos, end_pos = entity["start"], entity["end"]
+        # 2c: passed
+        assert og_text[start_pos:end_pos] == entity_name
+
+        prev_char = og_text[start_pos - 1] if start_pos >= 1 else " "
+        next_char = og_text[end_pos] if end_pos + 1 < len(og_text) else " "
+        if prev_char.isalnum() or next_char.isalnum():
+            if all([char.islower() for char in list(entity_name)]):  # Let's now only consider entities that have all lower name chars.
+                print("PMID: {}, Entity name: {}, pos: {}-{} is not a full entity.".format(pmid, entity_name, start_pos, end_pos))
+
+def check_3b_3c():
+    # 3b
+    for _, relation in all_relations.iterrows():
+        pmid = relation["pmid"]
+        arg1, arg2 = relation["arg1"], relation["arg2"]
+        type = relation["type"]
+
+        arg1, arg2 = ":".join(arg1.split(':')[1:]), ":".join(arg2.split(':')[1:])
+
+        entity1 = all_entities.loc[(all_entities["pmid"] == pmid) & (all_entities["arg"] == arg1)]        
+        entity2 = all_entities.loc[(all_entities["pmid"] == pmid) & (all_entities["arg"] == arg2)]
+        entity1_type = list(entity1["type"])[0]
+        entity2_type = list(entity2["type"])[0]
+
+        assert(entity1_type == "CHEMICAL")
+        assert(entity2_type in ["GENE-N", "GENE-Y"])
+        assert(type in ALL_RELATIONS)
+
+import itertools
+def check_overlapping():
+    overlapping_entities = {}  # (pmid, small_arg, big_arg) -> (small_name, big_name, relation)
+    pmids = set(all_entities["pmid"])
+    for pmid in pmids:
+        this_entities = all_entities[all_entities["pmid"] == pmid]
+        for (_, entity_i), (_, entity_j) in itertools.combinations(this_entities.iterrows(), r=2):
+            if entity_i["start"] <= entity_j["start"] and entity_j["end"] <= entity_i["end"]:
+                overlapping_entities[(entity_j["pmid"], entity_j["arg"], entity_i["arg"])] = (entity_j["name"], entity_i["name"], "NOT")
+            elif entity_j["start"] <= entity_i["start"] and entity_i["end"] <= entity_j["end"]:
+                overlapping_entities[(entity_i["pmid"], entity_i["arg"], entity_j["arg"])] = (entity_i["name"], entity_j["name"], "NOT")
+    for _, relation in all_relations.iterrows():
+        pmid, arg1, arg2, relation_type = relation["pmid"], relation["arg1"], relation["arg2"], relation["type"]
+        arg1, arg2 = ":".join(arg1.split(':')[1:]), ":".join(arg2.split(':')[1:])
+        if (pmid, arg1, arg2) in overlapping_entities:
+            name1, name2, _ = overlapping_entities[(pmid, arg1, arg2)]
+            overlapping_entities[(pmid, arg1, arg2)] = (name1, name2, relation_type)
+        elif (pmid, arg2, arg1) in overlapping_entities:
+            name2, name1, _ = overlapping_entities[(pmid, arg2, arg1)]
+            overlapping_entities[(pmid, arg2, arg1)][2] = (name2, name1, relation_type)
+    
+    for (pmid, arg1, arg2), (name1, name2, relation_type) in overlapping_entities.items():
+        print("Overlapping entities: {} & {}. Relation: {} PMID: {}".format(name2, name1, relation_type, pmid))
+
+
+def check_partial_overlapping():
+    overlapping_entities = {}  # (pmid, small_arg, big_arg) -> (small_name, big_name, relation)
+    pmids = set(all_entities["pmid"])
+    for pmid in pmids:
+        this_entities = all_entities[all_entities["pmid"] == pmid]
+        for (_, entity_i), (_, entity_j) in itertools.combinations(this_entities.iterrows(), r=2):
+            if entity_i["start"] < entity_j["start"] and entity_j["start"] < entity_i["end"] and entity_i["end"] < entity_j["end"]:
+                overlapping_entities[(entity_j["pmid"], entity_j["arg"], entity_i["arg"])] = (entity_j["name"], entity_i["name"], "NOT")
+            elif entity_j["start"] < entity_i["start"] and entity_i["start"] < entity_j["end"] and entity_j["end"] < entity_i["end"]:
+                overlapping_entities[(entity_i["pmid"], entity_i["arg"], entity_j["arg"])] = (entity_i["name"], entity_j["name"], "NOT")
+    for _, relation in all_relations.iterrows():
+        pmid, arg1, arg2, relation_type = relation["pmid"], relation["arg1"], relation["arg2"], relation["type"]
+        arg1, arg2 = ":".join(arg1.split(':')[1:]), ":".join(arg2.split(':')[1:])
+        if (pmid, arg1, arg2) in overlapping_entities:
+            name1, name2, _ = overlapping_entities[(pmid, arg1, arg2)]
+            overlapping_entities[(pmid, arg1, arg2)] = (name1, name2, relation_type)
+        elif (pmid, arg2, arg1) in overlapping_entities:
+            name2, name1, _ = overlapping_entities[(pmid, arg2, arg1)]
+            overlapping_entities[(pmid, arg2, arg1)][2] = (name2, name1, relation_type)
+    
+    for (pmid, arg1, arg2), (name1, name2, relation_type) in overlapping_entities.items():
+        print("Partially overlapping entities: {} & {}. Relation: {} PMID: {}".format(name2, name1, relation_type, pmid))
+
+
 check_duplicates()
-"""
-pmid_to_abstract_dict = {}
-with open(abstract_path, "r") as abstract_file:
-    for line in abstract_file:
-        pmid, text_title, text_abstract = line.strip().split('\t')
-        pmid_to_abstract_dict[pmid] = (text_title, text_abstract)
-
-entities_dict = {}
-with open(entity_path, "r") as entity_file:
-    for line in entity_file:
-        pmid, cpr, entity_type, start_pos, end_pos, name = line.strip().split('\t')
-        if pmid not in entities_dict:
-            entities_dict[pmid] = {cpr: (entity_type, start_pos, end_pos, name)}
-        else:
-            entities_dict[pmid][cpr] = (entity_type, start_pos, end_pos, name)
-
-pmid_to_relations_dict = {}
-with open(relation_path, "r") as relation_file:
-    for line in relation_file:
-        pmid, relation_type, arg1, arg2 = line.strip().split('\t')
-        assert len(arg1.split(":")) == 2
-        assert len(arg2.split(":")) == 2
-        arg1 = arg1.split(":")[-1]
-        arg2 = arg2.split(":")[-1]
-        if pmid in pmid_to_relations_dict:
-            pmid_to_relations_dict[pmid].append((relation_type, arg1, arg2))
-        else:
-            pmid_to_relations_dict[pmid] = [(relation_type, arg1, arg2)]
-
-df = pd.read_json("train_dataset.json", orient="table")
-pmids = list(set(df["pmid"]))
-for pmid in pmids:
-    pmid = str(pmid)
-    abstracts = pmid_to_abstract_dict.get(pmid, [])
-    entities = entities_dict.get(pmid, {})
-    relations = pmid_to_relations_dict.get(pmid, {})
-    dataset_viewer(pmid, abstracts, entities, relations)
-"""
+check_2b()
+check_2c_2d()
+check_3b_3c()
+check_overlapping()
+check_partial_overlapping()

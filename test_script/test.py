@@ -105,5 +105,5 @@ f1 = f1_score(whole_results["type_true"], whole_results["type_pred"], labels=ALL
 confusion_mat = confusion_matrix(whole_results["type_true"], whole_results["type_pred"], labels=ALL_RELATIONS_PLUS)
 confusion_df = pd.DataFrame(confusion_mat, columns=ALL_RELATIONS_PLUS, index=ALL_RELATIONS_PLUS)
 print("Micro F1 score: {}".format(f1))
-confusion_df.to_csv("confusion_matrix.csv")
-whole_results.to_csv("whole_results.csv")
+confusion_df.to_csv("{}_confusion_matrix.csv".format(test_file.replace(".", "_")))
+whole_results.to_csv("{}_whole_results.csv".format(test_file.replace(".", "_")))
