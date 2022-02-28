@@ -1,6 +1,0 @@
-.vscode
-__pycache__
-true_standard.tsv
-test_data
-*_confusion_matrix.csv
-*_whole_results.csv

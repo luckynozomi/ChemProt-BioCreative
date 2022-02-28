@@ -1,8 +1,5 @@
-import enum
-from re import split
-from nltk import sent_tokenize
-from nltk.inference.discourse import spacer
-from nltk.sem.logic import TruthValueType
+import os
+
 import pandas as pd
 
 from my_sentence_tokenizer import my_sentence_tokenizer
@@ -30,13 +27,14 @@ def gen_dataset(abstract_path, entity_path, relation_path):
                 entities_pos_dict[pmid] = [[start_pos, end_pos]]
 
     pmid_to_relations_dict = {}
-    with open(relation_path, "r") as relation_file:
-        for line in relation_file:
-            pmid, relation_type, arg1, arg2 = line.strip().split('\t')
-            if pmid in pmid_to_relations_dict:
-                pmid_to_relations_dict[pmid].append((relation_type, arg1, arg2))
-            else:
-                pmid_to_relations_dict[pmid] = [(relation_type, arg1, arg2)]
+    if relation_path:
+        with open(relation_path, "r") as relation_file:
+            for line in relation_file:
+                pmid, relation_type, arg1, arg2 = line.strip().split('\t')
+                if pmid in pmid_to_relations_dict:
+                    pmid_to_relations_dict[pmid].append((relation_type, arg1, arg2))
+                else:
+                    pmid_to_relations_dict[pmid] = [(relation_type, arg1, arg2)]
 
 
     output = []
@@ -56,6 +54,7 @@ def gen_dataset(abstract_path, entity_path, relation_path):
         sentence_id_to_entities_dict = {}
         entities = entities_dict[pmid]
         for entity_arg, (entity_type, entity_start_pos, entity_end_pos, entity_name) in entities.items():
+            entity_type = "GENE-Y" if entity_type == "GENE" else entity_type
             entity_arg = entity_arg.strip().split(":")[-1]
             sentence_id = -1
             entity_start_pos, entity_end_pos = int(entity_start_pos), int(entity_end_pos)
@@ -108,9 +107,24 @@ def gen_dataset(abstract_path, entity_path, relation_path):
     sv = pd.DataFrame(output, columns=["pmid", "chemical", "gene", "all_chemicals", "all_geneYs", "all_geneNs", "relation type", "sentence"])
     return sv
 
+os.makedirs("processed_dataset")
 dataset_training = gen_dataset(
-    abstract_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_abstracs.tsv",
-    entity_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_entities.tsv",
-    relation_path = "/home/manbish/projects/ChemProt-BioCreative/raw_data_processing/drugprot-gs-training-development/training/drugprot_training_relations.tsv"
+    abstract_path = "./drugprot-gs-training-development/training/drugprot_training_abstracs.tsv",
+    entity_path = "./drugprot-gs-training-development/training/drugprot_training_entities.tsv",
+    relation_path = "./drugprot-gs-training-development/training/drugprot_training_relations.tsv"
 )
-dataset_training.to_json("train_dataset.json", orient="table", indent=4)
+dataset_training.to_json("processed_dataset/train_dataset.json", orient="table", indent=4)
+
+dataset_development = gen_dataset(
+    abstract_path = "./drugprot-gs-training-development/development/drugprot_development_abstracs.tsv",
+    entity_path = "./drugprot-gs-training-development/development/drugprot_development_entities.tsv",
+    relation_path = "./drugprot-gs-training-development/development/drugprot_development_relations.tsv"
+)
+dataset_development.to_json("processed_dataset/development_dataset.json", orient="table", indent=4)
+
+dataset_test = gen_dataset(
+    abstract_path = "./drugprot-gs-training-development/test-background/test_background_abstracts.tsv",
+    entity_path = "./drugprot-gs-training-development/test-background/test_background_entities.tsv",
+    relation_path = None
+)
+dataset_test.to_json("processed_dataset/test_dataset.json", orient="table", indent=4)

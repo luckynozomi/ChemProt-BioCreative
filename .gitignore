@@ -1,2 +1,5 @@
 stanford-corenlp-4.2.2
 .vscode
+junk_files
+processed_dataset
+__pycache__
